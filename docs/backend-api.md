@@ -102,6 +102,7 @@ verification, and a valid PAN are present.
 - `POST /api/loans`: submit an eligible application.
 - `GET /api/loans`: list all applications for the authenticated user.
 - `POST /api/loans/:id/accept`: accept an offer and begin review.
+- `POST /api/loans/:id/cancel`: cancel a submitted or under-review application.
 - `GET /api/loans/:id/status`: return current status and history.
 - `PATCH /api/loans/:id/status`: advance status using `x-admin-key`.
 
@@ -111,6 +112,7 @@ Valid status transitions are:
 submitted -> under_review -> approved -> disbursed
      |              |
      +-> rejected <-+
+     +-> cancelled <-+
 ```
 
 The calculator accepts amounts from Rs. 10,000 to Rs. 100,000 and terms from

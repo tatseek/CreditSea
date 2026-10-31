@@ -3,6 +3,7 @@ import { config } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import { LoanApplication } from '../models/LoanApplication.js';
 import { evaluateEligibility } from '../services/eligibility.js';
+import { canUserCancelLoan } from '../services/loanStatus.js';
 
 export const loanRouter = express.Router();
 loanRouter.use(requireAuth);
@@ -70,6 +71,28 @@ loanRouter.post('/:id/accept', async (req, res) => {
   res.json({ loan });
 });
 
+loanRouter.post('/:id/cancel', async (req, res) => {
+  const loan = await LoanApplication.findOne({
+    _id: req.params.id,
+    user: req.user.id,
+  });
+  if (!loan) {
+    return res.status(404).json({ message: 'Loan application not found.' });
+  }
+  if (!canUserCancelLoan(loan.status)) {
+    return res.status(409).json({
+      message: `A ${loan.status} application can no longer be cancelled.`,
+    });
+  }
+  loan.status = 'cancelled';
+  loan.statusHistory.push({
+    status: 'cancelled',
+    note: 'Application cancelled by the user.',
+  });
+  await loan.save();
+  res.json({ loan });
+});
+
 loanRouter.patch('/:id/status', async (req, res) => {
   if (req.headers['x-admin-key'] !== config.adminApiKey) {
     return res.status(403).json({ message: 'Admin access required.' });
@@ -80,6 +103,7 @@ loanRouter.patch('/:id/status', async (req, res) => {
     under_review: ['approved', 'rejected'],
     approved: ['disbursed'],
     rejected: [],
+    cancelled: [],
     disbursed: [],
   };
   const loan = await LoanApplication.findById(req.params.id);

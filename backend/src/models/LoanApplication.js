@@ -4,7 +4,14 @@ const statusEntrySchema = new mongoose.Schema(
   {
     status: {
       type: String,
-      enum: ['submitted', 'under_review', 'approved', 'rejected', 'disbursed'],
+      enum: [
+        'submitted',
+        'under_review',
+        'approved',
+        'rejected',
+        'cancelled',
+        'disbursed',
+      ],
       required: true,
     },
     note: String,
@@ -31,7 +38,14 @@ const loanApplicationSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['submitted', 'under_review', 'approved', 'rejected', 'disbursed'],
+      enum: [
+        'submitted',
+        'under_review',
+        'approved',
+        'rejected',
+        'cancelled',
+        'disbursed',
+      ],
       default: 'submitted',
       index: true,
     },

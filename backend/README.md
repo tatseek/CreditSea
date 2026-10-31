@@ -32,11 +32,13 @@ When `RESEND_API_KEY` is configured, they are delivered through Resend.
 - `POST /api/loans/eligibility`
 - `POST|GET /api/loans`
 - `POST /api/loans/:id/accept`
+- `POST /api/loans/:id/cancel`
 - `GET /api/loans/:id/status`
 - `PATCH /api/loans/:id/status` with `x-admin-key` to advance an application
 
 Allowed status transitions are `submitted -> under_review -> approved ->
-disbursed`, with rejection possible from submitted or under review.
+disbursed`, with rejection possible from submitted or under review. Users can
+cancel submitted or under-review applications and then apply again.
 
 Every endpoint except mobile authentication and `/health` requires an
 `Authorization: Bearer <token>` header. Never commit `.env`; use
