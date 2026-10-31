@@ -14,6 +14,13 @@ app.use(cors({ origin: config.corsOrigin === '*' ? true : config.corsOrigin }));
 app.use(express.json({ limit: '100kb' }));
 app.use('/api', rateLimit({ windowMs: 60_000, limit: 120 }));
 
+app.get('/', (_req, res) =>
+  res.json({
+    name: 'CreditSea API',
+    status: 'ok',
+    health: '/health',
+  }),
+);
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 app.use('/api/auth', authRouter);
 app.use('/api/email', emailVerificationRouter);
@@ -24,3 +31,5 @@ app.use((err, _req, res, _next) => {
   console.error(err);
   res.status(500).json({ message: 'Unexpected server error.' });
 });
+
+export default app;
