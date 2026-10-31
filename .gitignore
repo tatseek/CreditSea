@@ -46,8 +46,11 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
-# Backend is maintained separately from this frontend repository
-/backend/
+# Node backend dependencies and runtime files
+/backend/node_modules/
+/backend/.env
+/backend/*.log
+/backend/coverage/
 
 # Local environment and signing files
 *.env

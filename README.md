@@ -19,7 +19,16 @@ offer, and tracking application status.
 
 ## Run
 
-Start the API separately, then run the Flutter application:
+Install and start the API:
+
+```sh
+cd backend
+cp .env.example .env
+npm install
+npm run dev
+```
+
+Then run the Flutter application from the repository root:
 
 ```sh
 flutter pub get
@@ -33,4 +42,11 @@ API endpoint for another environment with:
 flutter run --dart-define=API_BASE_URL=https://example.com/api
 ```
 
-The backend is intentionally excluded from this frontend repository.
+## Backend
+
+The Node.js and MongoDB backend is included in [`backend`](backend). It provides
+JWT authentication, mobile and email OTP verification, profile persistence,
+loan eligibility, multiple loan applications, offers, and status tracking.
+
+See [`backend/README.md`](backend/README.md) for configuration and
+[`docs/backend-api.md`](docs/backend-api.md) for the API contract.
