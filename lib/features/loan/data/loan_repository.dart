@@ -7,20 +7,20 @@ class LoanRepository {
 
   Future<Map<String, dynamic>> checkEligibility({
     required double amount,
-    required int tenureMonths,
+    required int tenureDays,
   }) => session.api.post('/loans/eligibility', {
     'amount': amount,
-    'tenureMonths': tenureMonths,
+    'tenureDays': tenureDays,
   });
 
   Future<Map<String, dynamic>> apply({
     required double amount,
-    required int tenureMonths,
+    required int tenureDays,
     required String purpose,
   }) async {
     final response = await session.api.post('/loans', {
       'amount': amount,
-      'tenureMonths': tenureMonths,
+      'tenureDays': tenureDays,
       'purpose': purpose,
     });
     return response['loan'] as Map<String, dynamic>;
@@ -34,6 +34,11 @@ class LoanRepository {
 
   Future<Map<String, dynamic>> accept(String id) async {
     final response = await session.api.post('/loans/$id/accept');
+    return response['loan'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> cancel(String id) async {
+    final response = await session.api.post('/loans/$id/cancel');
     return response['loan'] as Map<String, dynamic>;
   }
 }

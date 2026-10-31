@@ -103,16 +103,77 @@ class _AuthHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PageView.builder(
-      controller: controller.pageController,
-      itemCount: slides.length,
-      onPageChanged: (index) => controller.carouselIndex.value = index,
-      itemBuilder: (context, index) => SvgPicture.asset(
-        slides[index],
-        width: double.infinity,
-        fit: BoxFit.fitWidth,
-        alignment: Alignment.topCenter,
-      ),
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: PageView.builder(
+            controller: controller.pageController,
+            itemCount: slides.length,
+            onPageChanged: (index) => controller.carouselIndex.value = index,
+            itemBuilder: (context, index) => SvgPicture.asset(
+              slides[index],
+              width: double.infinity,
+              fit: BoxFit.fitWidth,
+              alignment: Alignment.topCenter,
+            ),
+          ),
+        ),
+        Positioned.fill(
+          child: IgnorePointer(
+            child: SvgPicture.asset(
+              'assets/images/auth_brand.svg',
+              width: double.infinity,
+              fit: BoxFit.fitWidth,
+              alignment: Alignment.topCenter,
+            ),
+          ),
+        ),
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 18,
+          child: Obx(
+            () => _CarouselIndicator(
+              activeIndex: controller.carouselIndex.value,
+              itemCount: slides.length,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CarouselIndicator extends StatelessWidget {
+  const _CarouselIndicator({
+    required this.activeIndex,
+    required this.itemCount,
+  });
+
+  final int activeIndex;
+  final int itemCount;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        for (var index = 0; index < itemCount; index++) ...[
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOut,
+            width: index == activeIndex ? 24 : 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(
+                alpha: index == activeIndex ? 1 : .5,
+              ),
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+          if (index < itemCount - 1) const SizedBox(width: 6),
+        ],
+      ],
     );
   }
 }

@@ -36,7 +36,7 @@ class LoanCalculatorScreen extends StatefulWidget {
   const LoanCalculatorScreen({super.key, required this.onApply, this.onSubmit});
 
   final VoidCallback onApply;
-  final Future<void> Function(double amount, int tenureMonths, String purpose)?
+  final Future<void> Function(double amount, int tenureDays, String purpose)?
   onSubmit;
 
   @override
@@ -66,7 +66,7 @@ class _LoanCalculatorScreenState extends State<LoanCalculatorScreen> {
     }
     setState(() => submitting = true);
     try {
-      await widget.onSubmit!(amount, (tenure / 30).ceil(), purpose!);
+      await widget.onSubmit!(amount, tenure.round(), purpose!);
     } on ApiException catch (error) {
       if (!mounted) return;
       final reasons = error.data?['eligibility']?['reasons'];
@@ -95,7 +95,11 @@ class _LoanCalculatorScreenState extends State<LoanCalculatorScreen> {
                   const _BackHeading(title: 'Apply for loan'),
                   const Text(
                     "We've calculated your loan eligibility. Select your preferred loan amount and tenure.",
-                    style: TextStyle(fontSize: 11, color: Color(0xFF565D65)),
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF565D65),
+                    ),
                   ),
                   const SizedBox(height: 18),
                   const Row(
@@ -209,7 +213,11 @@ class _LoanCalculatorScreenState extends State<LoanCalculatorScreen> {
                   const Text(
                     'Thank you for choosing CreditSea. Please accept to proceed with the loan details.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: Color(0xFF318CB4), fontSize: 11),
+                    style: TextStyle(
+                      color: Color(0xFF318CB4),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   const SizedBox(height: 18),
                   _PrimaryButton(
@@ -244,11 +252,13 @@ class OfferScreen extends StatelessWidget {
     required this.onAccept,
     required this.onExtend,
     this.loan,
+    this.onOpenStatus,
   });
 
   final VoidCallback onAccept;
   final VoidCallback onExtend;
   final Map<String, dynamic>? loan;
+  final VoidCallback? onOpenStatus;
 
   @override
   Widget build(BuildContext context) {
@@ -259,76 +269,79 @@ class OfferScreen extends StatelessWidget {
             activeIndex: 1,
             onSelected: (index) {
               if (index == 0) Navigator.maybePop(context);
-              if (index == 2) onAccept();
+              if (index == 2) (onOpenStatus ?? onAccept)();
             },
           ),
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 72, 16, 18),
-              child: Column(
-                children: [
-                  const Text(
-                    'Our Offerings',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 44),
-                  Container(
-                    width: 82,
-                    height: 82,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFFFD600),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.currency_rupee_rounded,
-                      color: Colors.white,
-                      size: 48,
-                    ),
-                  ),
-                  const SizedBox(height: 52),
-                  Text.rich(
-                    TextSpan(
-                      style: const TextStyle(
-                        color: Color(0xFF4A5057),
-                        fontSize: 13,
-                        height: 1.55,
+            child: Transform.translate(
+              offset: const Offset(0, -10),
+              child: _RaisedLoanSheet(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 78, 16, 8),
+                  child: Column(
+                    children: [
+                      const Text(
+                        'Our Offerings',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                      children: [
-                        const TextSpan(
-                          text: 'Congratulations! ',
-                          style: TextStyle(
-                            color: _green,
-                            fontWeight: FontWeight.w600,
+                      const SizedBox(height: 44),
+                      const _RotatingCoin(),
+                      const SizedBox(height: 52),
+                      Text.rich(
+                        TextSpan(
+                          style: const TextStyle(
+                            color: Color(0xFF4A5057),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                            height: 1.55,
+                          ),
+                          children: [
+                            const TextSpan(
+                              text: 'Congratulations! ',
+                              style: TextStyle(
+                                color: _green,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            TextSpan(
+                              text:
+                                  'We can offer you ${_money((loan?['amount'] as num?)?.toDouble() ?? 10000)} within 30 minutes for ${loan?['tenureDays'] ?? 30} days, with a total payable amount of ${_money((loan?['totalPayable'] as num?)?.toDouble() ?? 11100)}. Just a few more steps remain.',
+                            ),
+                          ],
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Proceed further to',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const Spacer(),
+                      _PrimaryButton(
+                        label: 'Accept Offer',
+                        onPressed: onAccept,
+                      ),
+                      const SizedBox(height: 12),
+                      OutlinedButton(
+                        onPressed: onExtend,
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(50),
+                          side: const BorderSide(color: _blue),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(5),
                           ),
                         ),
-                        TextSpan(
-                          text:
-                              'We can offer you ${_money((loan?['amount'] as num?)?.toDouble() ?? 10000)} within 30 minutes, with an estimated EMI of ${_money((loan?['estimatedEmi'] as num?)?.toDouble() ?? 10600)}. Just a few more steps remain.',
-                        ),
-                      ],
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Proceed further to',
-                    style: TextStyle(fontSize: 12),
-                  ),
-                  const Spacer(),
-                  _PrimaryButton(label: 'Accept Offer', onPressed: onAccept),
-                  const SizedBox(height: 12),
-                  OutlinedButton(
-                    onPressed: onExtend,
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(50),
-                      side: const BorderSide(color: _blue),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(5),
+                        child: const Text('Extend Offer'),
                       ),
-                    ),
-                    child: const Text('Extend Offer'),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           ),
@@ -343,22 +356,16 @@ class ApplicationStatusScreen extends StatelessWidget {
     super.key,
     required this.onContinue,
     this.loan,
+    this.onCancel,
   });
 
   final VoidCallback onContinue;
   final Map<String, dynamic>? loan;
-
-  static const statuses = [
-    ('Application Submitted', _green),
-    ('Application under Review', _blue),
-    ('E-KYC', Color(0xFF848B92)),
-    ('E-Nach', Color(0xFF848B92)),
-    ('E-Sign', Color(0xFF848B92)),
-    ('Disbursement', Color(0xFF848B92)),
-  ];
+  final Future<void> Function()? onCancel;
 
   @override
   Widget build(BuildContext context) {
+    final statuses = _applicationTimeline(loan?['status']);
     return _LoanScaffold(
       child: Column(
         children: [
@@ -369,46 +376,105 @@ class ApplicationStatusScreen extends StatelessWidget {
             },
           ),
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const _BackHeading(title: 'Application Status'),
-                  Text(
-                    'Loan application no. #${_shortId(loan?['_id'])}',
-                    style: TextStyle(fontSize: 11, color: Color(0xFF565D65)),
+            child: Transform.translate(
+              offset: const Offset(0, -10),
+              child: _RaisedLoanSheet(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const _BackHeading(title: 'Application Status'),
+                      Text(
+                        'Loan application no. #${_shortId(loan?['_id'])}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFF565D65),
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      for (final status in statuses) ...[
+                        _StatusTile(label: status.$1, color: status.$2),
+                        if (status != statuses.last)
+                          Center(
+                            child: Container(
+                              width: 1.5,
+                              height: 10,
+                              color: const Color(0xFFBCC5D2),
+                            ),
+                          ),
+                      ],
+                      const Spacer(),
+                      SvgPicture.asset(
+                        'assets/images/application_review.svg',
+                        width: 72,
+                        height: 58,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        _statusTitle(loan?['status']),
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        _statusMessage(loan?['status']),
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF5E646B),
+                          height: 1.4,
+                        ),
+                      ),
+                      const Spacer(),
+                      if (onCancel != null &&
+                          (loan?['status'] == 'submitted' ||
+                              loan?['status'] == 'under_review')) ...[
+                        OutlinedButton(
+                          onPressed: () async {
+                            final confirmed = await showDialog<bool>(
+                              context: context,
+                              builder: (dialogContext) => AlertDialog(
+                                title: const Text('Cancel application?'),
+                                content: const Text(
+                                  'This application will be closed, and you can apply for a new loan.',
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.pop(dialogContext, false),
+                                    child: const Text('Keep application'),
+                                  ),
+                                  FilledButton(
+                                    onPressed: () =>
+                                        Navigator.pop(dialogContext, true),
+                                    style: FilledButton.styleFrom(
+                                      backgroundColor: const Color(0xFFD64242),
+                                    ),
+                                    child: const Text('Cancel application'),
+                                  ),
+                                ],
+                              ),
+                            );
+                            if (confirmed == true) await onCancel!();
+                          },
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size.fromHeight(48),
+                            foregroundColor: const Color(0xFFD64242),
+                            side: const BorderSide(color: Color(0xFFD64242)),
+                          ),
+                          child: const Text('Cancel Application'),
+                        ),
+                        const SizedBox(height: 10),
+                      ],
+                      _PrimaryButton(label: 'Continue', onPressed: onContinue),
+                    ],
                   ),
-                  const SizedBox(height: 18),
-                  for (final status in statuses) ...[
-                    _StatusTile(label: status.$1, color: status.$2),
-                    const SizedBox(height: 10),
-                  ],
-                  const Spacer(),
-                  const Icon(
-                    Icons.directions_car_filled_outlined,
-                    color: _blue,
-                    size: 48,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    _statusTitle(loan?['status']),
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 10),
-                  const Text(
-                    "We're carefully reviewing your application to ensure everything is in order. Thank you for your patience.",
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Color(0xFF5E646B),
-                      height: 1.4,
-                    ),
-                  ),
-                  const Spacer(),
-                  _PrimaryButton(label: 'Continue', onPressed: onContinue),
-                ],
+                ),
               ),
             ),
           ),
@@ -461,6 +527,7 @@ class _LoanProgress extends StatelessWidget {
         ],
       ),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           for (var index = 0; index < labels.length; index++) ...[
             InkWell(
@@ -503,8 +570,6 @@ class _LoanProgress extends StatelessWidget {
                 ),
               ),
             ),
-            if (index < labels.length - 1)
-              const Expanded(child: Divider(color: _border, height: 1)),
           ],
         ],
       ),
@@ -534,18 +599,25 @@ class _CreditSeaHeader extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           SizedBox(
-            width: 44,
-            height: 44,
-            child: SvgPicture.asset('assets/images/credit_sea_mark.svg'),
+            width: 48,
+            height: 42,
+            child: SvgPicture.asset('assets/images/credit_sea_header_mark.svg'),
           ),
-          const SizedBox(width: 8),
-          const Text(
-            'CreditSea',
-            style: TextStyle(
-              color: Color(0xFF1469B8),
-              fontSize: 28,
-              fontWeight: FontWeight.w400,
+          const SizedBox(width: 5),
+          const Text.rich(
+            TextSpan(
+              children: [
+                TextSpan(
+                  text: 'Credit',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+                TextSpan(
+                  text: 'Sea',
+                  style: TextStyle(fontWeight: FontWeight.w300),
+                ),
+              ],
             ),
+            style: TextStyle(color: Color(0xFF1469B8), fontSize: 32),
           ),
         ],
       ),
@@ -593,10 +665,13 @@ class _RateCard extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(fontSize: 10)),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+          ),
           Text(
             value,
-            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
           ),
         ],
       ),
@@ -622,7 +697,10 @@ class _SliderTitle extends StatelessWidget {
             color: const Color(0xFFF7F8F9),
             borderRadius: BorderRadius.circular(4),
           ),
-          child: Text(value, style: const TextStyle(fontSize: 12)),
+          child: Text(
+            value,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          ),
         ),
       ],
     );
@@ -640,12 +718,15 @@ class _SummaryRow extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: const TextStyle(fontSize: 12)),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+        ),
         Text(
           value,
           style: const TextStyle(
             color: Color(0xFF0069C8),
-            fontSize: 12,
+            fontSize: 14,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -666,22 +747,101 @@ class _StatusTile extends StatelessWidget {
       height: 44,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
-        border: Border.all(color: color),
-        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: color, width: 1.8),
+        borderRadius: BorderRadius.circular(5),
       ),
       child: Row(
         children: [
-          Icon(Icons.description_outlined, color: color, size: 18),
+          SvgPicture.asset(
+            'assets/images/status_document.svg',
+            colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+            width: 22,
+            height: 22,
+          ),
           const SizedBox(width: 14),
           Expanded(
             child: Text(
               label,
               textAlign: TextAlign.center,
-              style: TextStyle(color: color, fontSize: 12),
+              style: TextStyle(
+                color: color,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
           const SizedBox(width: 32),
         ],
+      ),
+    );
+  }
+}
+
+class _RaisedLoanSheet extends StatelessWidget {
+  const _RaisedLoanSheet({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: .14),
+            blurRadius: 24,
+            spreadRadius: 2,
+            offset: const Offset(0, -6),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+}
+
+class _RotatingCoin extends StatefulWidget {
+  const _RotatingCoin();
+
+  @override
+  State<_RotatingCoin> createState() => _RotatingCoinState();
+}
+
+class _RotatingCoinState extends State<_RotatingCoin>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 2),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final angle = reduceMotion ? 0.0 : _controller.value * 6.283185307;
+        return Transform(
+          alignment: Alignment.center,
+          transform: Matrix4.identity()
+            ..setEntry(3, 2, .0018)
+            ..rotateY(angle),
+          child: child,
+        );
+      },
+      child: SvgPicture.asset(
+        'assets/images/offer_coin.svg',
+        width: 94,
+        height: 94,
       ),
     );
   }
@@ -745,21 +905,87 @@ String _shortId(dynamic value) {
 String _statusTitle(dynamic value) => switch (value) {
   'approved' => 'Application Approved',
   'rejected' => 'Application Rejected',
+  'cancelled' => 'Application Cancelled',
   'disbursed' => 'Loan Disbursed',
   'submitted' => 'Application Submitted',
   _ => 'Application Under Review',
 };
 
+List<(String, Color)> _applicationTimeline(dynamic status) {
+  const inactive = Color(0xFF848B92);
+  if (status == 'rejected') {
+    return const [
+      ('Application Submitted', _green),
+      ('Application under Review', _green),
+      ('Application Rejected', Color(0xFFD64242)),
+      ('Disbursement', inactive),
+    ];
+  }
+  if (status == 'cancelled') {
+    return const [
+      ('Application Submitted', _green),
+      ('Application Cancelled', Color(0xFFD64242)),
+      ('Application Approved', inactive),
+      ('Disbursement', inactive),
+    ];
+  }
+  final activeIndex = switch (status) {
+    'submitted' => 0,
+    'under_review' => 1,
+    'approved' => 2,
+    'disbursed' => 3,
+    _ => 0,
+  };
+  const labels = [
+    'Application Submitted',
+    'Application under Review',
+    'Application Approved',
+    'Disbursement',
+  ];
+  return [
+    for (var index = 0; index < labels.length; index++)
+      (
+        labels[index],
+        index < activeIndex
+            ? _green
+            : index == activeIndex
+            ? _blue
+            : inactive,
+      ),
+  ];
+}
+
+String _statusMessage(dynamic value) => switch (value) {
+  'submitted' =>
+    'Your offer is ready. Accept it to send the application for review.',
+  'approved' =>
+    'Your application has been approved and is ready for disbursement.',
+  'rejected' =>
+    'This application was not approved. You can submit a new application.',
+  'cancelled' => 'You cancelled this application. You can now submit a new loan application.',
+  'disbursed' => 'The approved loan has been disbursed successfully.',
+  _ =>
+    "We're carefully reviewing your application. Thank you for your patience.",
+};
+
 const _fieldLabel = TextStyle(
   color: _dark,
-  fontSize: 12,
+  fontSize: 14,
+  fontWeight: FontWeight.w600,
+);
+const _rangeLabel = TextStyle(
+  color: Color(0xFF70777F),
+  fontSize: 11,
   fontWeight: FontWeight.w500,
 );
-const _rangeLabel = TextStyle(color: Color(0xFF7C838A), fontSize: 9);
 
 InputDecoration _inputDecoration(String hint) => InputDecoration(
   hintText: hint,
-  hintStyle: const TextStyle(color: Color(0xFFA1A6AB), fontSize: 12),
+  hintStyle: const TextStyle(
+    color: Color(0xFF8F959B),
+    fontSize: 13,
+    fontWeight: FontWeight.w500,
+  ),
   isDense: true,
   contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
   enabledBorder: const OutlineInputBorder(

@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import '../../../core/session/session_service.dart';
 import '../../auth/presentation/auth_screen.dart';
 import '../../loan/data/loan_repository.dart';
+import '../../loan/presentation/loan_collection_screens.dart';
 import '../../loan/presentation/loan_flow_screens.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -44,22 +45,29 @@ class _HomeScreenState extends State<HomeScreen> {
     Get.to(
       () => LoanCalculatorScreen(
         onApply: () {},
-        onSubmit: (amount, tenureMonths, purpose) async {
+        onSubmit: (amount, tenureDays, purpose) async {
           final loan = await loans.apply(
             amount: amount,
-            tenureMonths: tenureMonths,
+            tenureDays: tenureDays,
             purpose: purpose,
           );
           applications = [loan, ...applications];
           Get.off(
             () => OfferScreen(
               loan: loan,
-              onAccept: () => Get.off(
-                () => ApplicationStatusScreen(
-                  loan: loan,
-                  onContinue: () => Get.offAll(() => const HomeScreen()),
-                ),
-              ),
+              onAccept: () async {
+                final accepted = await loans.accept(loan['_id'] as String);
+                Get.off(
+                  () => ApplicationStatusScreen(
+                    loan: accepted,
+                    onContinue: () => Get.offAll(() => const HomeScreen()),
+                    onCancel: () async {
+                      await loans.cancel(accepted['_id'] as String);
+                      Get.offAll(() => const HomeScreen());
+                    },
+                  ),
+                );
+              },
               onExtend: () => Get.back(),
             ),
           );
@@ -69,36 +77,11 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _openOffer() {
-    if (latest == null) return _message('Apply for a loan first.');
-    Get.to(
-      () => OfferScreen(
-        loan: latest,
-        onAccept: () async {
-          final accepted = await loans.accept(latest!['_id'] as String);
-          applications = [accepted, ...applications.skip(1)];
-          Get.off(
-            () => ApplicationStatusScreen(
-              loan: accepted,
-              onContinue: () => Get.offAll(() => const HomeScreen()),
-            ),
-          );
-        },
-        onExtend: _openApply,
-      ),
-    );
+    Get.to(() => const LoanOffersScreen());
   }
 
   void _openStatus() {
-    if (latest == null) return _message('No loan application found.');
-    Get.to(
-      () => ApplicationStatusScreen(loan: latest, onContinue: () => Get.back()),
-    );
-  }
-
-  void _message(String value) {
-    Get.showSnackbar(
-      GetSnackBar(message: value, duration: const Duration(seconds: 2)),
-    );
+    Get.to(() => const LoanApplicationsScreen());
   }
 
   Future<void> _logout() async {
@@ -112,17 +95,39 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0F4B92),
-        foregroundColor: Colors.white,
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF1469B8),
+        surfaceTintColor: Colors.white,
+        toolbarHeight: 82,
+        centerTitle: true,
+        elevation: 3,
+        shadowColor: Colors.black.withValues(alpha: .16),
         title: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             SizedBox(
-              width: 34,
-              height: 34,
-              child: SvgPicture.asset('assets/images/credit_sea_mark.svg'),
+              width: 48,
+              height: 42,
+              child: SvgPicture.asset(
+                'assets/images/credit_sea_header_mark.svg',
+              ),
             ),
-            const SizedBox(width: 8),
-            const Text('CreditSea'),
+            const SizedBox(width: 5),
+            const Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: 'Credit',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  TextSpan(
+                    text: 'Sea',
+                    style: TextStyle(fontWeight: FontWeight.w300),
+                  ),
+                ],
+              ),
+              style: TextStyle(fontSize: 32, color: Color(0xFF1469B8)),
+            ),
           ],
         ),
         actions: [
@@ -187,6 +192,7 @@ String _statusLabel(dynamic value) => switch (value) {
   'under_review' => 'Under Review',
   'approved' => 'Approved',
   'rejected' => 'Rejected',
+  'cancelled' => 'Cancelled',
   'disbursed' => 'Disbursed',
   _ => 'Submitted',
 };

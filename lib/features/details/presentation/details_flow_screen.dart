@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
 
 import '../../../core/network/api_client.dart';
@@ -58,30 +59,34 @@ class _DetailsFlowScreenState extends State<DetailsFlowScreen> {
                   children: [
                     const _ApplicationProgress(),
                     Expanded(
-                      child: ClipRect(
-                        child: _AnimatedDetailsSheet(
-                          key: ValueKey(_step),
-                          child: switch (_step) {
-                            DetailsStep.personal => _PersonalDetailsForm(
-                              onContinue: (details) => setState(() {
-                                _draft.addAll(details);
-                                _step = DetailsStep.email;
-                              }),
-                            ),
-                            DetailsStep.email => _EmailVerificationForm(
-                              onBack: () =>
-                                  setState(() => _step = DetailsStep.personal),
-                              onVerified: (email) => setState(() {
-                                _draft['email'] = email;
-                                _step = DetailsStep.pan;
-                              }),
-                            ),
-                            DetailsStep.pan => _PanVerificationForm(
-                              onBack: () =>
-                                  setState(() => _step = DetailsStep.email),
-                              draft: _draft,
-                            ),
-                          },
+                      child: Transform.translate(
+                        offset: const Offset(0, -10),
+                        child: ClipRect(
+                          child: _AnimatedDetailsSheet(
+                            key: ValueKey(_step),
+                            child: switch (_step) {
+                              DetailsStep.personal => _PersonalDetailsForm(
+                                onContinue: (details) => setState(() {
+                                  _draft.addAll(details);
+                                  _step = DetailsStep.email;
+                                }),
+                              ),
+                              DetailsStep.email => _EmailVerificationForm(
+                                onBack: () => setState(
+                                  () => _step = DetailsStep.personal,
+                                ),
+                                onVerified: (email) => setState(() {
+                                  _draft['email'] = email;
+                                  _step = DetailsStep.pan;
+                                }),
+                              ),
+                              DetailsStep.pan => _PanVerificationForm(
+                                onBack: () =>
+                                    setState(() => _step = DetailsStep.email),
+                                draft: _draft,
+                              ),
+                            },
+                          ),
                         ),
                       ),
                     ),
@@ -152,11 +157,10 @@ class _ApplicationProgress extends StatelessWidget {
         ],
       ),
       child: const Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           _ProgressItem(number: '1', label: 'Register', active: true),
-          Expanded(child: Divider(color: _borderColor, height: 1)),
           _ProgressItem(number: '2', label: 'Offer'),
-          Expanded(child: Divider(color: _borderColor, height: 1)),
           _ProgressItem(number: '3', label: 'Approval'),
         ],
       ),
@@ -425,10 +429,13 @@ class _EmailVerificationForm extends StatefulWidget {
 }
 
 class _EmailVerificationFormState extends State<_EmailVerificationForm> {
-  static const stagingOtp = '123456';
   final _email = TextEditingController();
   final _otp = List.generate(6, (_) => TextEditingController());
   final _focusNodes = List.generate(6, (_) => FocusNode());
+  Timer? _countdown;
+  bool _otpRequested = false;
+  bool _busy = false;
+  int _secondsRemaining = 0;
 
   @override
   void dispose() {
@@ -439,21 +446,80 @@ class _EmailVerificationFormState extends State<_EmailVerificationForm> {
     for (final node in _focusNodes) {
       node.dispose();
     }
+    _countdown?.cancel();
     super.dispose();
   }
 
-  void _verify() {
+  bool get _validEmail =>
+      RegExp(r'^[^@]+@[^@]+\.[^@]+$').hasMatch(_email.text.trim());
+
+  Future<void> _requestOtp() async {
     final email = _email.text.trim();
-    final otp = _otp.map((controller) => controller.text).join();
-    if (!RegExp(r'^[^@]+@[^@]+\.[^@]+$').hasMatch(email)) {
+    if (!_validEmail) {
       _message('Enter a valid email ID');
       return;
     }
-    if (otp != stagingOtp) {
-      _message('Use staging email OTP $stagingOtp');
+    setState(() => _busy = true);
+    try {
+      final repository = ProfileRepository(Get.find<SessionService>());
+      final developmentOtp = await repository.requestEmailOtp(email);
+      await Future<void>.delayed(const Duration(seconds: 1));
+      if (!mounted) return;
+      for (final controller in _otp) {
+        controller.clear();
+      }
+      setState(() {
+        _otpRequested = true;
+        _secondsRemaining = 300;
+      });
+      _startCountdown();
+      _message(
+        developmentOtp == null
+            ? 'OTP sent to $email'
+            : 'Development OTP: $developmentOtp',
+      );
+      _focusNodes.first.requestFocus();
+    } on ApiException catch (error) {
+      _message(error.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _verify() async {
+    final email = _email.text.trim();
+    final otp = _otp.map((controller) => controller.text).join();
+    if (otp.length != 6) {
+      _message('Enter the complete six-digit OTP');
       return;
     }
-    widget.onVerified(email);
+    setState(() => _busy = true);
+    try {
+      final repository = ProfileRepository(Get.find<SessionService>());
+      await repository.verifyEmailOtp(email, otp);
+      widget.onVerified(email);
+    } on ApiException catch (error) {
+      _message(error.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  void _startCountdown() {
+    _countdown?.cancel();
+    _countdown = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted || _secondsRemaining <= 0) {
+        timer.cancel();
+        return;
+      }
+      setState(() => _secondsRemaining--);
+    });
+  }
+
+  String get _countdownLabel {
+    final minutes = (_secondsRemaining ~/ 60).toString().padLeft(2, '0');
+    final seconds = (_secondsRemaining % 60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
   }
 
   void _message(String value) {
@@ -465,72 +531,96 @@ class _EmailVerificationFormState extends State<_EmailVerificationForm> {
     return _DetailsPage(
       title: 'Personal Email ID',
       onBack: widget.onBack,
-      buttonLabel: 'Verify',
-      onButtonPressed: _verify,
+      buttonLabel: _busy
+          ? (_otpRequested ? 'Verifying…' : 'Sending…')
+          : (_otpRequested ? 'Verify' : 'Send OTP'),
+      onButtonPressed: _busy ? () {} : (_otpRequested ? _verify : _requestOtp),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const SizedBox(height: 18),
           const _VerificationIllustration(
-            icon: Icons.mark_email_read_outlined,
-            background: Color(0xFFF3F7FF),
+            asset: 'assets/images/email_verification.svg',
+            width: 170,
+            height: 170,
           ),
           const SizedBox(height: 38),
           _LabeledField(
             label: 'Email ID*',
             child: TextField(
               controller: _email,
+              enabled: !_otpRequested,
               keyboardType: TextInputType.emailAddress,
               decoration: _fieldDecoration('Enter your email ID'),
             ),
           ),
-          const SizedBox(height: 22),
-          const Text('OTP Verification', style: _labelStyle),
-          const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: List.generate(
-              6,
-              (index) => SizedBox(
-                width: 45,
-                child: TextField(
-                  controller: _otp[index],
-                  focusNode: _focusNodes[index],
-                  keyboardType: TextInputType.number,
-                  textAlign: TextAlign.center,
-                  maxLength: 1,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  decoration: _fieldDecoration('').copyWith(counterText: ''),
-                  onChanged: (value) {
-                    if (value.isNotEmpty && index < 5) {
-                      _focusNodes[index + 1].requestFocus();
-                    } else if (value.isEmpty && index > 0) {
-                      _focusNodes[index - 1].requestFocus();
-                    }
-                  },
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              const Text("Didn't receive it? ", style: TextStyle(fontSize: 11)),
-              TextButton(
-                onPressed: () => _message('Staging OTP: $stagingOtp'),
-                style: TextButton.styleFrom(
-                  minimumSize: Size.zero,
-                  padding: EdgeInsets.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                child: const Text(
-                  'Resend Code',
-                  style: TextStyle(fontSize: 11),
-                ),
-              ),
-              const Spacer(),
-              const Text('00:28', style: TextStyle(fontSize: 11)),
-            ],
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 320),
+            child: !_otpRequested
+                ? const SizedBox.shrink()
+                : Column(
+                    key: const ValueKey('email-otp-fields'),
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const SizedBox(height: 22),
+                      const Text('OTP Verification', style: _labelStyle),
+                      const SizedBox(height: 10),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: List.generate(
+                          6,
+                          (index) => SizedBox(
+                            width: 45,
+                            child: TextField(
+                              controller: _otp[index],
+                              focusNode: _focusNodes[index],
+                              keyboardType: TextInputType.number,
+                              textAlign: TextAlign.center,
+                              maxLength: 1,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly,
+                              ],
+                              decoration: _fieldDecoration('')
+                                  .copyWith(counterText: ''),
+                              onChanged: (value) {
+                                if (value.isNotEmpty && index < 5) {
+                                  _focusNodes[index + 1].requestFocus();
+                                } else if (value.isEmpty && index > 0) {
+                                  _focusNodes[index - 1].requestFocus();
+                                }
+                              },
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          const Text(
+                            "Didn't receive it? ",
+                            style: TextStyle(fontSize: 11),
+                          ),
+                          TextButton(
+                            onPressed: _busy ? null : _requestOtp,
+                            style: TextButton.styleFrom(
+                              minimumSize: Size.zero,
+                              padding: EdgeInsets.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: const Text(
+                              'Resend Code',
+                              style: TextStyle(fontSize: 11),
+                            ),
+                          ),
+                          const Spacer(),
+                          Text(
+                            _countdownLabel,
+                            style: const TextStyle(fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
           ),
         ],
       ),
@@ -588,8 +678,7 @@ class _PanVerificationFormState extends State<_PanVerificationForm> {
         children: [
           const SizedBox(height: 22),
           const _VerificationIllustration(
-            icon: Icons.credit_card_rounded,
-            background: Color(0xFFEFF4FF),
+            asset: 'assets/images/pan_verification.svg',
           ),
           const SizedBox(height: 44),
           _LabeledField(
@@ -630,7 +719,7 @@ class _DetailsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(7, 10, 7, 0),
+      padding: const EdgeInsets.fromLTRB(7, 0, 7, 0),
       child: Container(
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
@@ -639,9 +728,9 @@ class _DetailsPage extends StatelessWidget {
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.13),
-              blurRadius: 22,
-              spreadRadius: 1,
-              offset: const Offset(0, -5),
+              blurRadius: 26,
+              spreadRadius: 3,
+              offset: const Offset(0, -7),
             ),
           ],
         ),
@@ -766,7 +855,7 @@ class _CompactDatePickerDialogState extends State<_CompactDatePickerDialog> {
       insetPadding: const EdgeInsets.only(left: 104, right: 22),
       elevation: 12,
       shadowColor: Colors.black.withValues(alpha: 0.22),
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF2F7FF),
       surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
       child: Padding(
@@ -787,10 +876,31 @@ class _CompactDatePickerDialogState extends State<_CompactDatePickerDialog> {
                   icon: const Icon(Icons.chevron_left, size: 18),
                 ),
                 Expanded(
-                  child: Text(
-                    monthNames[visibleMonth.month - 1],
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 12),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<int>(
+                      value: visibleMonth.month,
+                      isDense: true,
+                      alignment: Alignment.center,
+                      iconSize: 14,
+                      style: const TextStyle(
+                        color: _labelColor,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      items: List.generate(
+                        12,
+                        (index) => DropdownMenuItem(
+                          value: index + 1,
+                          child: Text(monthNames[index]),
+                        ),
+                      ),
+                      onChanged: (month) => setState(() {
+                        visibleMonth = DateTime(
+                          visibleMonth.year,
+                          month ?? visibleMonth.month,
+                        );
+                      }),
+                    ),
                   ),
                 ),
                 IconButton(
@@ -814,10 +924,32 @@ class _CompactDatePickerDialogState extends State<_CompactDatePickerDialog> {
                   icon: const Icon(Icons.chevron_left, size: 18),
                 ),
                 Expanded(
-                  child: Text(
-                    '${visibleMonth.year}',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 12),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<int>(
+                      value: visibleMonth.year,
+                      isDense: true,
+                      alignment: Alignment.center,
+                      iconSize: 14,
+                      style: const TextStyle(
+                        color: _labelColor,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      items: [
+                        for (
+                          var year = 1950;
+                          year <= DateTime.now().year;
+                          year++
+                        )
+                          DropdownMenuItem(value: year, child: Text('$year')),
+                      ],
+                      onChanged: (year) => setState(() {
+                        visibleMonth = DateTime(
+                          year ?? visibleMonth.year,
+                          visibleMonth.month,
+                        );
+                      }),
+                    ),
                   ),
                 ),
                 IconButton(
@@ -940,21 +1072,22 @@ class _LabeledField extends StatelessWidget {
 
 class _VerificationIllustration extends StatelessWidget {
   const _VerificationIllustration({
-    required this.icon,
-    required this.background,
+    required this.asset,
+    this.width = 168,
+    this.height = 124,
   });
 
-  final IconData icon;
-  final Color background;
+  final String asset;
+  final double width;
+  final double height;
 
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Container(
-        width: 128,
-        height: 112,
-        decoration: BoxDecoration(color: background, shape: BoxShape.circle),
-        child: Icon(icon, size: 72, color: const Color(0xFF1268D8)),
+      child: SizedBox(
+        width: width,
+        height: height,
+        child: SvgPicture.asset(asset, fit: BoxFit.contain),
       ),
     );
   }
