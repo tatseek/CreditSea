@@ -45,3 +45,12 @@ Every endpoint except mobile authentication and `/health` requires an
 `.env.example` as the configuration template.
 
 For request and response details, see `../docs/backend-api.md`.
+
+## Vercel deployment
+
+Import this repository into Vercel and set the project Root Directory to
+`backend`, or run the Vercel CLI from the `backend` directory. Add the variables
+from `.env.example` in the Vercel project settings, using production values for
+`MONGODB_URI`, `JWT_SECRET`, `ADMIN_API_KEY`, `RESEND_API_KEY`, and
+`EMAIL_FROM`. The serverless entry point caches the MongoDB connection between
+warm invocations.
