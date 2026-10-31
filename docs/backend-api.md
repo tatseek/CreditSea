@@ -1,8 +1,24 @@
 # CreditSea Backend API
 
-The CreditSea API is an Express service backed by MongoDB. Local development
-uses `http://localhost:8080`; Android emulators access the same service through
-`http://10.0.2.2:8080`. API routes below are relative to the server origin.
+The CreditSea API is an Express service backed by MongoDB. The production
+origin is `https://backend-nu-mocha-n1313jnkw2.vercel.app`; protected API routes
+use the `/api` prefix. Local development uses `http://localhost:8080`, while an
+Android emulator reaches the same local service through
+`http://10.0.2.2:8080`.
+
+See [architecture.md](architecture.md) for component responsibilities, data
+flow, persistence, security boundaries, and deployment topology.
+
+## Conventions
+
+- Request and response bodies use JSON.
+- Successful requests return a `2xx` status.
+- Validation failures return `400`; authentication failures return `401`.
+- Forbidden admin actions return `403`.
+- Missing records return `404`.
+- Invalid state transitions or active-loan conflicts return `409`.
+- Ineligible loan submissions return `422`.
+- Error responses use `{ "message": "..." }` and may include structured data.
 
 ## Configuration
 
@@ -19,6 +35,11 @@ Copy `backend/.env.example` to `backend/.env` and configure:
 
 Do not commit `.env`. Only `.env.example` belongs in source control.
 
+The current deployment uses the Resend test sender. It can deliver email OTPs
+only to the account owner's verified recipient, `das31arunima@gmail.com`.
+Delivery to arbitrary Gmail addresses requires a verified Resend domain and an
+`EMAIL_FROM` address on that domain.
+
 ## Authentication
 
 ### Request mobile OTP
@@ -28,6 +49,10 @@ Do not commit `.env`. Only `.env.example` belongs in source control.
 ```json
 { "mobile": "9999999999" }
 ```
+
+In the supplied development configuration, `9999999999` uses staging OTP
+`1234`. This is a development fallback, not real SMS delivery. Other generated
+mobile OTPs are returned/logged only when `OTP_MODE=development`.
 
 ### Verify mobile OTP
 
@@ -73,7 +98,9 @@ Both email endpoints require a Bearer token.
 
 The service validates and normalizes the email, replaces any unused challenge,
 stores only a bcrypt hash of the generated six-digit OTP, and sends it using
-Resend. The challenge expires after `OTP_TTL_MINUTES`.
+Resend. The challenge expires after `OTP_TTL_MINUTES`. With the current Resend
+test sender, use `das31arunima@gmail.com`; other recipients require a verified
+sending domain.
 
 ### Verify email OTP
 

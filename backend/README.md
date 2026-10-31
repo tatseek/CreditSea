@@ -1,56 +1,122 @@
 # CreditSea API
 
-Node.js and MongoDB API for OTP authentication, profile persistence, loan
-eligibility, applications, and application status tracking.
+The CreditSea backend is an Express API backed by MongoDB. It handles mobile
+authentication, JWT sessions, email verification, profile persistence, loan
+eligibility, applications, offers, cancellations, and status tracking.
+
+## Technology
+
+- Node.js 20+
+- Express 5
+- MongoDB and Mongoose
+- JWT authentication
+- bcrypt password and OTP hashing
+- Resend email delivery
+- Vercel serverless functions
+- Node's built-in test runner
 
 ## Local setup
 
-1. Copy `.env.example` to `.env` and change `JWT_SECRET` and `ADMIN_API_KEY`.
-2. Start MongoDB locally or set `MONGODB_URI` to MongoDB Atlas.
-3. Add `RESEND_API_KEY` to deliver real email OTPs. Set `EMAIL_FROM` to a
-   verified sender when sending beyond Resend's test recipient.
-4. Run `npm install` and `npm run dev`.
+1. Copy `.env.example` to `.env`.
+2. Set `MONGODB_URI` to local MongoDB or MongoDB Atlas.
+3. Replace `JWT_SECRET` and `ADMIN_API_KEY` with private random values.
+4. Optionally set `RESEND_API_KEY` and `EMAIL_FROM` for real email delivery.
+5. Install dependencies and start the API.
 
-The Android emulator reaches the host API at `http://10.0.2.2:8080`.
-Development mode returns/logs the mobile OTP; the configured staging
-credentials are mobile `9999999999` and OTP `1234`. Production must replace the
-mobile logging branch with an SMS provider and set `OTP_MODE=production`.
+```sh
+npm install
+npm run dev
+```
 
-Email OTPs are six digits, hashed in MongoDB, expire according to
-`OTP_TTL_MINUTES`, and allow at most five incorrect verification attempts.
-When `RESEND_API_KEY` is configured, they are delivered through Resend.
+The local server listens on `http://localhost:8080` by default. Android
+emulators reach it through `http://10.0.2.2:8080`.
 
-## API
+## Environment variables
 
-- `POST /api/auth/request-otp`
-- `POST /api/auth/verify-otp`
-- `POST /api/auth/set-password`
-- `POST /api/auth/login`
-- `POST /api/email/request-otp`
-- `POST /api/email/verify-otp`
-- `GET|PATCH /api/profile`
-- `POST /api/loans/eligibility`
-- `POST|GET /api/loans`
-- `POST /api/loans/:id/accept`
-- `POST /api/loans/:id/cancel`
-- `GET /api/loans/:id/status`
-- `PATCH /api/loans/:id/status` with `x-admin-key` to advance an application
+| Variable | Purpose |
+| --- | --- |
+| `PORT` | Local HTTP port. Vercel assigns its own port, so do not set this there. |
+| `MONGODB_URI` | MongoDB connection string, including the `CreditSea` database name. |
+| `JWT_SECRET` | Secret used to sign user session tokens. |
+| `JWT_EXPIRES_IN` | JWT lifetime, for example `30d`. |
+| `OTP_TTL_MINUTES` | Mobile and email OTP lifetime. |
+| `OTP_MODE` | `development` enables staging OTP responses/logging. |
+| `STAGING_MOBILE` | Known development mobile number. |
+| `STAGING_OTP` | Fixed OTP for the staging mobile number. |
+| `CORS_ORIGIN` | Allowed browser origin; the mobile application is not restricted by CORS. |
+| `ADMIN_API_KEY` | Secret required to advance an application status. |
+| `RESEND_API_KEY` | Resend API credential used for email OTP delivery. |
+| `EMAIL_FROM` | Resend sender identity. |
 
-Allowed status transitions are `submitted -> under_review -> approved ->
-disbursed`, with rejection possible from submitted or under review. Users can
-cancel submitted or under-review applications and then apply again.
+Never commit `.env`; only `.env.example` belongs in source control.
 
-Every endpoint except mobile authentication and `/health` requires an
-`Authorization: Bearer <token>` header. Never commit `.env`; use
-`.env.example` as the configuration template.
+## OTP behavior
 
-For request and response details, see `../docs/backend-api.md`.
+### Mobile
+
+The assignment backend intentionally uses a staging OTP instead of an SMS
+vendor. With the sample development configuration, mobile `9999999999` uses
+OTP `1234`. Real SMS delivery requires integrating a provider and replacing the
+development logging branch in `src/routes/auth.js`.
+
+### Email
+
+The backend generates a random six-digit OTP, stores a bcrypt hash in MongoDB,
+and sends the original code through Resend. Challenges expire after
+`OTP_TTL_MINUTES`; five incorrect attempts are allowed.
+
+The deployed project currently uses Resend's `onboarding@resend.dev` test
+sender. Resend test mode permits delivery only to the account owner's verified
+recipient, currently `das31arunima@gmail.com`. To support other Gmail addresses,
+verify a domain in Resend and change `EMAIL_FROM` to a sender on that domain.
+
+## API groups
+
+- `/api/auth`: mobile OTP registration, password creation, and login
+- `/api/email`: authenticated email OTP request and verification
+- `/api/profile`: authenticated profile retrieval and updates
+- `/api/loans`: eligibility, applications, offers, cancellation, and status
+- `/health`: service health check
+
+All routes except mobile authentication and health checks require
+`Authorization: Bearer <token>`. Status administration additionally requires
+`x-admin-key`.
+
+## Loan rules
+
+- Amount: Rs. 10,000 to Rs. 100,000
+- Tenure: 20 to 45 days
+- Interest: 1% of principal
+- Processing fee: 10% of principal
+- Minimum monthly income: Rs. 15,000
+- Minimum credit score: 550
+- Only one `submitted`, `under_review`, or `approved` application per user
+- `submitted` and `under_review` applications can be cancelled by the user
+
+Historical rejected, cancelled, and disbursed applications remain available in
+the application's offer and status lists.
+
+## Tests
+
+```sh
+npm test
+```
+
+The tests cover calculation results, eligibility decisions, cancellation rules,
+and terminal application states.
 
 ## Vercel deployment
 
-Import this repository into Vercel and set the project Root Directory to
-`backend`, or run the Vercel CLI from the `backend` directory. Add the variables
-from `.env.example` in the Vercel project settings, using production values for
-`MONGODB_URI`, `JWT_SECRET`, `ADMIN_API_KEY`, `RESEND_API_KEY`, and
-`EMAIL_FROM`. The serverless entry point caches the MongoDB connection between
-warm invocations.
+Import the repository and choose `backend` as the Vercel Root Directory. Add
+the variables from `.env.example` to the Vercel project, excluding `PORT`.
+`api/index.js` is the serverless entry point and caches the Mongoose connection
+between warm invocations. `vercel.json` rewrites application paths to that
+function.
+
+Current deployment:
+
+- `https://backend-nu-mocha-n1313jnkw2.vercel.app`
+- `https://backend-nu-mocha-n1313jnkw2.vercel.app/health`
+
+See [the API contract](../docs/backend-api.md) and
+[the architecture guide](../docs/architecture.md) for further details.

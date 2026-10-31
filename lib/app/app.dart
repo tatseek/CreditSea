@@ -11,7 +11,7 @@ class CreditSeaApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GetMaterialApp(
-      title: 'CreditSea',
+      title: 'Credit Sea',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0F4B92)),

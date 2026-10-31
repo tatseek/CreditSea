@@ -1,7 +1,5 @@
 import 'dart:convert';
-import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 class ApiException implements Exception {
@@ -18,16 +16,15 @@ class ApiException implements Exception {
 class ApiClient {
   ApiClient({http.Client? client}) : _client = client ?? http.Client();
 
+  static const _productionBaseUrl =
+      'https://backend-nu-mocha-n1313jnkw2.vercel.app/api';
+
   final http.Client _client;
   String? token;
 
   static String get baseUrl {
     const configured = String.fromEnvironment('API_BASE_URL');
-    if (configured.isNotEmpty) return configured;
-    if (kIsWeb) return 'http://localhost:8080/api';
-    return Platform.isAndroid
-        ? 'http://10.0.2.2:8080/api'
-        : 'http://localhost:8080/api';
+    return configured.isNotEmpty ? configured : _productionBaseUrl;
   }
 
   Future<Map<String, dynamic>> get(String path) => _send('GET', path);
